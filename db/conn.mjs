@@ -13,7 +13,6 @@ async function connectMongo() {
     console.log("Connected to MongoDB successfully");
   } catch (error) {
     console.error("Error connecting to MongoDB:", error);
-    return null; // Return null if connection fails
   }
 
   const db = conn.db("sample_training");

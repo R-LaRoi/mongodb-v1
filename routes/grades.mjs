@@ -9,9 +9,6 @@ router.post("/", async (req, res) => {
   let collection = await db.collection("grades");
   let newDocument = req.body;
 
-  // Create a compound index on learner_id and class_id, in that order, both ascending.
-  let compoundIndex = db.grades.createIndex({ learner_id: 1, class_id: 1 });
-
   // rename fields for backwards compatibility
   if (newDocument.student_id) {
     newDocument.learner_id = newDocument.student_id;
@@ -113,6 +110,9 @@ router.get("/student/:id", async (req, res) => {
 router.get("/learner/:id", async (req, res) => {
   let collection = await db.collection("grades");
   let query = { learner_id: Number(req.params.id) };
+
+  // Create a compound index on learner_id and class_id, in that order, both ascending.
+  let compoundIndex = db.grades.createIndex({ learner_id: 1, class_id: 1 });
 
   // Check for class_id parameter
   if (req.query.class) query.class_id = Number(req.query.class);
