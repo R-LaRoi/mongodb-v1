@@ -1,5 +1,5 @@
 import express from "express";
-import db from "../db/conn.mjs";
+import Grade from "./models/gradeSchema.mjs";
 import { ObjectId } from "mongodb";
 
 const router = express.Router();
@@ -13,9 +13,7 @@ const router = express.Router();
 
 // Create a GET route at /grades/stats
 router.get("/grades/stats", async (req, res) => {
-  let stats = await db.collection("grades");
-
-  let result = await stats
+  const result = await Grade.aggregate
     .aggregate([
       {
         $set: {
@@ -77,8 +75,7 @@ router.get("/grades/stats", async (req, res) => {
 // Create a GET route at /grades/stats/:id
 
 router.get("/grades/stats/:id", async (req, res) => {
-  let stats = await db.collection("grades");
-  let result = await stats
+  const result = await Grade.aggregate
     .aggregate([
       {
         $match: {
@@ -127,63 +124,59 @@ router.get("/grades/stats/:id", async (req, res) => {
 
 // Get the weighted average of a specified learner's grades, per class
 router.get("/learner/:id/avg-class", async (req, res) => {
-  let collection = await db.collection("grades");
-
-  let result = await collection
-    .aggregate([
-      {
-        $match: { learner_id: Number(req.params.id) },
-      },
-      {
-        $unwind: { path: "$scores" },
-      },
-      {
-        $group: {
-          _id: "$class_id",
-          quiz: {
-            $push: {
-              $cond: {
-                if: { $eq: ["$scores.type", "quiz"] },
-                then: "$scores.score",
-                else: "$$REMOVE",
-              },
+  const result = await Grade.aggregate([
+    {
+      $match: { learner_id: Number(req.params.id) },
+    },
+    {
+      $unwind: { path: "$scores" },
+    },
+    {
+      $group: {
+        _id: "$class_id",
+        quiz: {
+          $push: {
+            $cond: {
+              if: { $eq: ["$scores.type", "quiz"] },
+              then: "$scores.score",
+              else: "$$REMOVE",
             },
           },
-          exam: {
-            $push: {
-              $cond: {
-                if: { $eq: ["$scores.type", "exam"] },
-                then: "$scores.score",
-                else: "$$REMOVE",
-              },
+        },
+        exam: {
+          $push: {
+            $cond: {
+              if: { $eq: ["$scores.type", "exam"] },
+              then: "$scores.score",
+              else: "$$REMOVE",
             },
           },
-          homework: {
-            $push: {
-              $cond: {
-                if: { $eq: ["$scores.type", "homework"] },
-                then: "$scores.score",
-                else: "$$REMOVE",
-              },
+        },
+        homework: {
+          $push: {
+            $cond: {
+              if: { $eq: ["$scores.type", "homework"] },
+              then: "$scores.score",
+              else: "$$REMOVE",
             },
           },
         },
       },
-      {
-        $project: {
-          _id: 0,
-          class_id: "$_id",
-          avg: {
-            $sum: [
-              { $multiply: [{ $avg: "$exam" }, 0.5] },
-              { $multiply: [{ $avg: "$quiz" }, 0.3] },
-              { $multiply: [{ $avg: "$homework" }, 0.2] },
-            ],
-          },
+    },
+    {
+      $project: {
+        _id: 0,
+        class_id: "$_id",
+        avg: {
+          $sum: [
+            { $multiply: [{ $avg: "$exam" }, 0.5] },
+            { $multiply: [{ $avg: "$quiz" }, 0.3] },
+            { $multiply: [{ $avg: "$homework" }, 0.2] },
+          ],
         },
       },
-    ])
-    .toArray();
+    },
+  ]).toArray();
 
   if (!result) res.send("Not found").status(404);
   else res.send(result).status(200);

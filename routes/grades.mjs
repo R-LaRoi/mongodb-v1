@@ -1,4 +1,6 @@
 import express from "express";
+import mongoose from "mongoose";
+import Grade from "./models/gradeSchema.mjs";
 import db from "../db/conn.mjs";
 import { ObjectId } from "mongodb";
 
@@ -6,7 +8,6 @@ const router = express.Router();
 
 // Create a single grade entry
 router.post("/", async (req, res) => {
-  let collection = await db.collection("grades");
   let newDocument = req.body;
 
   // rename fields for backwards compatibility
@@ -15,7 +16,9 @@ router.post("/", async (req, res) => {
     delete newDocument.student_id;
   }
 
-  let result = await collection.insertOne(newDocument);
+  const newGrade = new Grade(newDocument);
+  const result = await newGrade.save();
+
   res.send(result).status(204);
 });
 
@@ -57,9 +60,8 @@ router.get("/grades", async (req, res) => {
 
 // Get a single grade entry
 router.get("/:id", async (req, res) => {
-  let collection = await db.collection("grades");
   let query = { _id: ObjectId(req.params.id) };
-  let result = await collection.findOne(query);
+  const result = await Grade.findOne(query);
 
   if (!result) res.send("Not found").status(404);
   else res.send(result).status(200);
@@ -67,10 +69,9 @@ router.get("/:id", async (req, res) => {
 
 // Add a score to a grade entry
 router.patch("/:id/add", async (req, res) => {
-  let collection = await db.collection("grades");
   let query = { _id: ObjectId(req.params.id) };
 
-  let result = await collection.updateOne(query, {
+  let result = await Grade.updateOne(query, {
     $push: { scores: req.body },
   });
 
@@ -93,9 +94,8 @@ router.patch("/:id/remove", async (req, res) => {
 
 // Delete a single grade entry
 router.delete("/:id", async (req, res) => {
-  let collection = await db.collection("grades");
   let query = { _id: ObjectId(req.params.id) };
-  let result = await collection.deleteOne(query);
+  let result = await Grade.deleteOne(query);
 
   if (!result) res.send("Not found").status(404);
   else res.send(result).status(200);
@@ -108,16 +108,15 @@ router.get("/student/:id", async (req, res) => {
 
 // Get a learner's grade data
 router.get("/learner/:id", async (req, res) => {
-  let collection = await db.collection("grades");
   let query = { learner_id: Number(req.params.id) };
 
   // Create a compound index on learner_id and class_id, in that order, both ascending.
-  let compoundIndex = db.grades.createIndex({ learner_id: 1, class_id: 1 });
+  gradeSchema.index({ learner_id: 1, class_id: 1 });
 
   // Check for class_id parameter
   if (req.query.class) query.class_id = Number(req.query.class);
 
-  let result = await collection.find(query).toArray();
+  let result = await Grade.find(query).toArray();
 
   if (!result) res.send("Not found").status(404);
   else res.send(result).status(200);
@@ -125,13 +124,12 @@ router.get("/learner/:id", async (req, res) => {
 
 // Delete a learner's grade data
 router.delete("/learner/:id", async (req, res) => {
-  let collection = await db.collection("grades");
   let query = { learner_id: Number(req.params.id) };
 
-  let result = await collection.deleteOne(query);
+  let result = await Grade.deleteOne(query);
 
   // Create a single-field index on learner_id.
-  let learnerIndex = await collection.createIndex({ learner_id: 1 });
+  let learnerIndex = await Grade.createIndex({ learner_id: 1 });
 
   if (!result) res.send("Not found").status(404);
   else res.send(result).status(200);
@@ -139,16 +137,13 @@ router.delete("/learner/:id", async (req, res) => {
 
 // Get a class's grade data
 router.get("/class/:id", async (req, res) => {
-  let collection = await db.collection("grades");
-  let query = { class_id: Number(req.params.id) };
-
   // Create a single-field index on class_id.
-  const index = await collection.createIndex({ class_id: 1 });
+  const index = await Grade.ensureIndex();
 
   // Check for learner_id parameter
   if (req.query.learner) query.learner_id = Number(req.query.learner);
 
-  let result = await collection.find(query).toArray();
+  const result = await Grade.find(query);
 
   if (!result) res.send("Not found").status(404);
   else res.send(result).status(200);
@@ -156,10 +151,9 @@ router.get("/class/:id", async (req, res) => {
 
 // Update a class id
 router.patch("/class/:id", async (req, res) => {
-  let collection = await db.collection("grades");
   let query = { class_id: Number(req.params.id) };
 
-  let result = await collection.updateMany(query, {
+  let result = await Grade.updateMany(query, {
     $set: { class_id: req.body.class_id },
   });
 
@@ -169,10 +163,9 @@ router.patch("/class/:id", async (req, res) => {
 
 // Delete a class
 router.delete("/class/:id", async (req, res) => {
-  let collection = await db.collection("grades");
   let query = { class_id: Number(req.params.id) };
 
-  let result = await collection.deleteMany(query);
+  let result = await Grade.deleteMany(query);
 
   if (!result) res.send("Not found").status(404);
   else res.send(result).status(200);
